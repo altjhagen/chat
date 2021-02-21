@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  api:
+    build: ./api
+    depends_on:
+      - dynamodb
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      CHAT_DYNAMODB_LOCALHOST_PORT: ${CHAT_DYNAMODB_LOCALHOST_PORT}
+      CHAT_DYNAMODB_TABLE_NAME: ${CHAT_DYNAMODB_TABLE_NAME}
+      FLASK_ENV: ${FLASK_ENV}
+    ports:
+      - "${CHAT_API_LOCALHOST_PORT}:5000"
+    volumes:
+      - ./api:/usr/src/app
+      - /usr/src/app/venv
+  ui:
+    build: ./ui
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      REACT_APP_CHAT_API_ENDPOINT: http://localhost:${CHAT_API_LOCALHOST_PORT}
+    ports:
+      - "${CHAT_UI_LOCALHOST_PORT}:3000"
+    volumes:
+      - ./ui:/usr/src/app
+      - /usr/src/app/node_modules
+  dynamodb:
+    image: amazon/dynamodb-local
+    ports:
+      - "${CHAT_DYNAMODB_LOCALHOST_PORT}:8000"
+  dynamodb-setup:
+    image: amazon/aws-cli
+    depends_on:
+      - dynamodb
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    command: |
+      dynamodb create-table
+      --region us-east-1
+      --endpoint-url http://dynamodb:${CHAT_DYNAMODB_LOCALHOST_PORT}
+      --table-name ${CHAT_DYNAMODB_TABLE_NAME}
+      --attribute-definitions
+        AttributeName=pk,AttributeType=S
+        AttributeName=sk,AttributeType=S
+      --key-schema
+        AttributeName=pk,KeyType=HASH
+        AttributeName=sk,KeyType=RANGE
+      --provisioned-throughput
+        ReadCapacityUnits=1,WriteCapacityUnits=1
